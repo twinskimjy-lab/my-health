@@ -155,6 +155,10 @@ nav button.on{color:var(--accent)}
 .set-row .x{color:var(--sub);font-size:12px}
 .set-row .rm{background:none;border:none;color:var(--sub);font-size:16px;cursor:pointer;padding:2px 6px}
 .addset{background:none;border:1px dashed var(--line);color:var(--sub);border-radius:0;width:100%;padding:8px;font-size:13px;cursor:pointer;margin-top:2px}
+.finishex{background:var(--accent);border:none;color:#000;border-radius:0;width:100%;padding:11px;font-size:13px;font-weight:800;letter-spacing:2px;cursor:pointer;margin-top:8px}
+.log-ex.done{border-left:3px solid var(--accent)}
+.done-badge{color:var(--accent);font-size:11px;font-weight:800;letter-spacing:1px;margin-right:10px}
+.editex{background:none;border:1px solid rgba(255,255,255,.3);color:var(--sub);border-radius:0;padding:4px 12px;font-size:11px;cursor:pointer;letter-spacing:1px}
 .empty{color:var(--sub);text-align:center;padding:36px 10px;font-size:14px;line-height:1.7}
 .empty .big{font-size:34px;display:block;margin-bottom:8px}
 /* 루틴 */
@@ -797,7 +801,8 @@ function lastRecord(exId, beforeDate){
   const dates = Object.keys(DB.logs).filter(d=>d<beforeDate).sort().reverse();
   for(const d of dates){
     const found = DB.logs[d].find(l=>l.ex===exId);
-    if(found && found.sets.length) return {date:d, sets:found.sets};
+    // 완료된 운동만 지난 기록으로 인정 (done 필드 없는 예전 기록은 완료로 간주)
+    if(found && found.done!==false && found.sets.length) return {date:d, sets:found.sets};
   }
   return null;
 }
@@ -818,20 +823,29 @@ function renderToday(){
     const ex = EX[l.ex];
     const last = lastRecord(l.ex, day);
     const lastTxt = last ? '지난 기록('+last.date.slice(5).replace('-','/')+'): '+setsText(last.sets) : '첫 기록이에요';
-    const rows = l.sets.map((s,si)=>
-      '<div class="set-row"><span class="no">'+(si+1)+'</span>'+
-      '<input type="number" inputmode="decimal" placeholder="kg" value="'+s.w+'" onchange="updSet('+i+','+si+',\'w\',this.value)">'+
+    // 완료된 운동: 요약 카드 (수정 버튼으로 다시 열기)
+    if(l.done){
+      return '<div class="log-ex done"><div class="head">'+
+        '<div class="nm" onclick="openDetail(\''+l.ex+'\')" style="cursor:pointer">'+ex.n+'<small>'+PARTS[ex.p]+' ›</small></div>'+
+        '<div><span class="done-badge">✓ 완료</span><button class="editex" onclick="editEx('+i+')">수정</button></div></div>'+
+        '<div style="font-size:13px">'+setsText(l.sets)+'</div></div>';
+    }
+    const rows = l.sets.map((s,si)=>{
+      const ph = last && last.sets[si] ? last.sets[si] : null; // 지난 기록을 흐린 힌트로만 표시
+      return '<div class="set-row"><span class="no">'+(si+1)+'</span>'+
+      '<input type="number" inputmode="decimal" placeholder="'+(ph&&ph.w!==''?ph.w:'kg')+'" value="'+s.w+'" onchange="updSet('+i+','+si+',\'w\',this.value)">'+
       '<span class="x">kg ×</span>'+
-      '<input type="number" inputmode="numeric" placeholder="회" value="'+s.r+'" onchange="updSet('+i+','+si+',\'r\',this.value)">'+
+      '<input type="number" inputmode="numeric" placeholder="'+(ph&&ph.r!==''?ph.r:'회')+'" value="'+s.r+'" onchange="updSet('+i+','+si+',\'r\',this.value)">'+
       '<span class="x">회</span>'+
-      '<button class="rm" onclick="rmSet('+i+','+si+')">✕</button></div>'
-    ).join('');
+      '<button class="rm" onclick="rmSet('+i+','+si+')">✕</button></div>';
+    }).join('');
     return '<div class="log-ex"><div class="head">'+
       '<div class="nm" onclick="openDetail(\''+l.ex+'\')" style="cursor:pointer">'+ex.n+'<small>'+PARTS[ex.p]+' ›</small></div>'+
       '<button class="del" onclick="rmEx('+i+')">🗑</button></div>'+
       '<div style="font-size:12px;color:var(--sub);margin-bottom:8px">'+lastTxt+'</div>'+
       rows+
-      '<button class="addset" onclick="addSet('+i+')">＋ 세트 추가</button></div>';
+      '<button class="addset" onclick="addSet('+i+')">＋ 세트 추가</button>'+
+      '<button class="finishex" onclick="finishEx('+i+')">✓ 운동 완료</button></div>';
   }).join('');
 }
 function addExToToday(exId){
@@ -841,7 +855,7 @@ function addExToToday(exId){
   // 지난 기록이 있으면 같은 세트 수로 시작
   const last = lastRecord(exId, day+'~');
   const n = last ? last.sets.length : 3;
-  DB.logs[day].push({ex:exId, sets:Array.from({length:n},()=>({w:'',r:''}))});
+  DB.logs[day].push({ex:exId, sets:Array.from({length:n},()=>({w:'',r:''})), done:false});
   save();
   return true;
 }
@@ -854,9 +868,7 @@ function rmEx(i){
 }
 function addSet(i){
   const day = todayStr();
-  const sets = DB.logs[day][i].sets;
-  const prev = sets[sets.length-1];
-  sets.push({w:prev?prev.w:'', r:prev?prev.r:''});
+  DB.logs[day][i].sets.push({w:'', r:''}); // 항상 공란으로 추가
   save(); renderToday();
 }
 function rmSet(i,si){
@@ -867,6 +879,23 @@ function rmSet(i,si){
 function updSet(i,si,k,v){
   DB.logs[todayStr()][i].sets[si][k] = v;
   save();
+}
+// 운동 완료: 입력된 세트만 확정 저장
+function finishEx(i){
+  const day = todayStr();
+  const l = DB.logs[day][i];
+  const filled = l.sets.filter(s=>s.w!==''||s.r!=='');
+  if(!filled.length){ toast('입력된 세트가 없어요'); return; }
+  l.sets = filled; l.done = true;
+  save(); renderToday();
+  toast(EX[l.ex].n+' 완료! 💪');
+}
+function editEx(i){
+  const day = todayStr();
+  const l = DB.logs[day][i];
+  l.done = false;
+  if(!l.sets.length) l.sets.push({w:'',r:''});
+  save(); renderToday();
 }
 
 // ===== 운동 라이브러리 =====
@@ -1102,7 +1131,7 @@ function renderCal(){
   for(let i=0;i<first;i++) h += '<div></div>';
   for(let d=1;d<=days;d++){
     const ds = calY+'-'+String(calM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    const has = DB.logs[ds] && DB.logs[ds].length;
+    const has = DB.logs[ds] && DB.logs[ds].some(l=>l.done!==false); // 완료된 운동이 있는 날만 골드 점
     const cls = ['cal-cell', ds===todayStr()?'today':'', ds===selDay?'sel':''].join(' ');
     h += '<button class="'+cls+'" onclick="selectDay(\''+ds+'\')">'+d+(has?'<span class="dot"></span>':'')+'</button>';
   }
@@ -1120,7 +1149,7 @@ function renderDayDetail(){
   }
   box.innerHTML = '<div class="card"><b>'+title+'</b>'+list.map(l=>
     '<div class="dd-ex" style="margin-top:10px"><div class="dd-name">'+EX[l.ex].n+'</div>'+
-    '<div class="dd-sets">'+(setsText(l.sets)||'세트 미입력')+'</div></div>'
+    '<div class="dd-sets">'+(l.done===false ? '미완료' : (setsText(l.sets)||'세트 미입력'))+'</div></div>'
   ).join('')+'</div>';
 }
 
