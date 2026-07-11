@@ -214,6 +214,7 @@ nav button.on{color:var(--accent)}
 .m-outline{fill:none;stroke:#2e2e2e;stroke-width:1.5}
 .m-fig{fill:#141414;stroke:#262626;stroke-width:1}
 @keyframes mpulse{0%,100%{opacity:1}50%{opacity:.45}}
+.mpls{animation:mpulse 1.7s ease-in-out infinite}
 .mlegend{display:flex;gap:16px;font-size:11px;color:var(--sub);padding:8px 2px 8px;letter-spacing:1px}
 .mlegend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
 .musc-tags{font-size:12.5px;color:var(--sub);margin-bottom:14px;line-height:1.6}
@@ -820,37 +821,60 @@ const MUSC = {
 };
 const MNAME = {traps:'승모근',delt_front:'전면어깨',delt_side:'측면어깨',delt_rear:'후면어깨',chest:'가슴',biceps:'이두',triceps:'삼두',forearm:'전완',abs:'복직근',obliques:'복사근',lats:'광배근',midback:'등 중부',lowback:'기립근(허리)',glutes:'둔근',quads:'대퇴사두',adductors:'내전근',hams:'햄스트링',calves:'종아리'};
 // ===== 근육 지도 도형 (앞모습 x~75 / 뒷모습 x~225) =====
-const MSHAPE = {
- traps:['<path d="M63,30 L75,26 L73,38 L64,38 Z"/>','<path d="M87,30 L75,26 L77,38 L86,38 Z"/>','<path d="M225,26 L207,38 L225,56 L243,38 Z"/>'],
- delt_front:['<circle cx="54" cy="45" r="7"/>','<circle cx="96" cy="45" r="7"/>'],
- delt_side:['<ellipse cx="45.5" cy="49" rx="4" ry="7"/>','<ellipse cx="104.5" cy="49" rx="4" ry="7"/>'],
- delt_rear:['<circle cx="204" cy="45" r="7"/>','<circle cx="246" cy="45" r="7"/>'],
- chest:['<path d="M57,50 Q75,45 74,66 Q62,70 57,61 Z"/>','<path d="M93,50 Q75,45 76,66 Q88,70 93,61 Z"/>'],
- biceps:['<ellipse cx="47" cy="70" rx="5" ry="11"/>','<ellipse cx="103" cy="70" rx="5" ry="11"/>'],
- triceps:['<ellipse cx="197" cy="70" rx="5" ry="11"/>','<ellipse cx="253" cy="70" rx="5" ry="11"/>'],
- forearm:['<ellipse cx="42" cy="97" rx="4.5" ry="12"/>','<ellipse cx="108" cy="97" rx="4.5" ry="12"/>','<ellipse cx="192" cy="97" rx="4.5" ry="12"/>','<ellipse cx="258" cy="97" rx="4.5" ry="12"/>'],
- abs:['<rect x="67" y="70" width="16" height="36"/>'],
- obliques:['<path d="M60,72 L65,71 L66,104 L61,97 Z"/>','<path d="M90,72 L85,71 L84,104 L89,97 Z"/>'],
- lats:['<path d="M209,56 L221,62 L221,96 Q210,86 206,70 Z"/>','<path d="M241,56 L229,62 L229,96 Q240,86 244,70 Z"/>'],
- midback:['<path d="M225,58 L214,66 L225,84 L236,66 Z"/>'],
- lowback:['<rect x="219" y="88" width="5.5" height="19"/>','<rect x="225.5" y="88" width="5.5" height="19"/>'],
- glutes:['<circle cx="217" cy="119" r="9"/>','<circle cx="233" cy="119" r="9"/>'],
- quads:['<ellipse cx="64" cy="137" rx="8" ry="24"/>','<ellipse cx="86" cy="137" rx="8" ry="24"/>'],
- adductors:['<ellipse cx="72" cy="126" rx="3.5" ry="13"/>','<ellipse cx="78" cy="126" rx="3.5" ry="13"/>'],
- hams:['<ellipse cx="216" cy="148" rx="7.5" ry="22"/>','<ellipse cx="234" cy="148" rx="7.5" ry="22"/>'],
- calves:['<ellipse cx="214" cy="194" rx="5.5" ry="16"/>','<ellipse cx="236" cy="194" rx="5.5" ry="16"/>']
-};
-const MBODY = '<circle cx="75" cy="14" r="9" class="m-outline"/><circle cx="225" cy="14" r="9" class="m-outline"/>'
- +'<path d="M62,108 L88,108 L83,124 L75,118 L67,124 Z" class="m-fig"/>'
- +'<ellipse cx="65" cy="190" rx="5" ry="17" class="m-fig"/><ellipse cx="85" cy="190" rx="5" ry="17" class="m-fig"/>'
- +'<text x="75" y="228" text-anchor="middle" fill="#555" font-size="11">앞</text><text x="225" y="228" text-anchor="middle" fill="#555" font-size="11">뒤</text>';
 function muscleMapSVG(main, sub){
-  let inner = MBODY;
-  for(const k in MSHAPE){
-    const cls = main.indexOf(k)>=0 ? 'm-main' : (sub && sub.indexOf(k)>=0 ? 'm-sub' : 'm-base');
-    inner += MSHAPE[k].map(s=>s.replace('/>',' class="'+cls+'"/>')).join('');
+  main = main || []; sub = sub || [];
+  var uid = 'mm' + (muscleMapSVG._n = (muscleMapSVG._n||0) + 1) + '_';
+  var F = 75, B = 225;
+  function m(d, cx){ return d.split(/\s+/).map(function(t){ if(/^[MLQZ]$/.test(t)||t==='') return t; var p=t.split(','); return p.length===2 ? (2*cx-parseFloat(p[0])).toFixed(1)+','+p[1] : t; }).join(' '); }
+  function mp(dl, cx){ return [dl, m(dl, cx)]; }
+  function body(cx){
+    var head='<circle cx="'+cx+'" cy="14" r="9.5"/>';
+    var neck='<path d="M '+(cx-5)+',22 L '+(cx+5)+',22 L '+(cx+6)+',32 L '+(cx-6)+',32 Z"/>';
+    var torso='<path d="M '+(cx-17)+',34 Q '+(cx-20)+',33 '+(cx-18)+',42 Q '+(cx-15)+',60 '+(cx-11)+',80 Q '+(cx-13)+',96 '+(cx-10)+',110 L '+(cx+10)+',110 Q '+(cx+13)+',96 '+(cx+11)+',80 Q '+(cx+15)+',60 '+(cx+18)+',42 Q '+(cx+20)+',33 '+(cx+17)+',34 Z"/>';
+    var armLd='M '+(cx-16)+',36 Q '+(cx-28)+',39 '+(cx-29)+',52 Q '+(cx-31)+',66 '+(cx-32)+',80 Q '+(cx-34)+',93 '+(cx-33)+',105 L '+(cx-25)+',105 Q '+(cx-25)+',92 '+(cx-24)+',80 Q '+(cx-22)+',65 '+(cx-21)+',54 Q '+(cx-19)+',44 '+(cx-14)+',45 Z';
+    var armL='<path d="'+armLd+'"/>'; var armR='<path d="'+m(armLd,cx)+'"/>';
+    var pelvis='<path d="M '+(cx-11)+',108 L '+(cx+11)+',108 L '+(cx+13)+',124 Q '+cx+',128 '+(cx-13)+',124 Z"/>';
+    var thLd='M '+(cx-13)+',120 Q '+(cx-18)+',126 '+(cx-16)+',146 Q '+(cx-15)+',162 '+(cx-13)+',170 L '+(cx-2)+',170 Q '+(cx-1)+',150 '+(cx-2)+',130 Q '+(cx-3)+',120 '+(cx-6)+',119 Z';
+    var thL='<path d="'+thLd+'"/>'; var thR='<path d="'+m(thLd,cx)+'"/>';
+    var lgLd='M '+(cx-14)+',173 Q '+(cx-17)+',184 '+(cx-14)+',197 Q '+(cx-12)+',208 '+(cx-9)+',215 L '+(cx-4)+',215 Q '+(cx-3)+',198 '+(cx-4)+',186 Q '+(cx-4)+',176 '+(cx-6)+',173 Z';
+    var lgL='<path d="'+lgLd+'"/>'; var lgR='<path d="'+m(lgLd,cx)+'"/>';
+    var ftL='<ellipse cx="'+(cx-9)+'" cy="221" rx="6" ry="4"/>'; var ftR='<ellipse cx="'+(cx+9)+'" cy="221" rx="6" ry="4"/>';
+    return '<g fill="url(#'+uid+'body)" stroke="#0c0e11" stroke-width="1">'+head+neck+torso+armL+armR+pelvis+thL+thR+lgL+lgR+ftL+ftR+'</g>';
   }
-  return '<svg viewBox="0 0 300 234" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';
+  var R = {};
+  R.traps = mp('M '+(F-13)+',33 Q '+(F-2)+',29 '+(F-1)+',39 L '+(F-15)+',40 Z',F).concat(['M '+B+',30 Q '+(B-21)+',40 '+(B-20)+',47 Q '+B+',58 '+(B+20)+',47 Q '+(B+21)+',40 '+B+',30 Z']);
+  R.delt_front = mp('M '+(F-16)+',37 Q '+(F-27)+',39 '+(F-27)+',52 Q '+(F-18)+',56 '+(F-13)+',47 Q '+(F-13)+',39 '+(F-16)+',37 Z',F);
+  R.delt_side = mp('M '+(F-27)+',44 Q '+(F-32)+',52 '+(F-30)+',63 Q '+(F-24)+',62 '+(F-24)+',52 Q '+(F-24)+',45 '+(F-27)+',44 Z',F);
+  R.delt_rear = mp('M '+(B-16)+',37 Q '+(B-27)+',39 '+(B-27)+',52 Q '+(B-18)+',56 '+(B-13)+',47 Q '+(B-13)+',39 '+(B-16)+',37 Z',B);
+  R.chest = mp('M '+(F-14)+',46 Q '+(F-2)+',44 '+(F-1)+',52 Q '+(F-1)+',63 '+(F-8)+',65 Q '+(F-16)+',62 '+(F-16)+',53 Q '+(F-16)+',47 '+(F-14)+',46 Z',F);
+  R.biceps = mp('M '+(F-24)+',56 Q '+(F-28)+',66 '+(F-25)+',79 Q '+(F-19)+',79 '+(F-19)+',68 Q '+(F-19)+',58 '+(F-21)+',56 Z',F);
+  R.triceps = mp('M '+(B-24)+',56 Q '+(B-28)+',66 '+(B-25)+',79 Q '+(B-19)+',79 '+(B-19)+',68 Q '+(B-19)+',58 '+(B-21)+',56 Z',B);
+  R.forearm = mp('M '+(F-28)+',83 Q '+(F-32)+',93 '+(F-30)+',104 Q '+(F-24)+',104 '+(F-24)+',94 Q '+(F-24)+',85 '+(F-26)+',83 Z',F).concat(mp('M '+(B-28)+',83 Q '+(B-32)+',93 '+(B-30)+',104 Q '+(B-24)+',104 '+(B-24)+',94 Q '+(B-24)+',85 '+(B-26)+',83 Z',B));
+  R.abs = ['M '+(F-7)+',66 Q '+F+',64 '+(F+7)+',66 L '+(F+6)+',104 Q '+F+',109 '+(F-6)+',104 Z'];
+  R.obliques = mp('M '+(F-13)+',68 Q '+(F-8)+',66 '+(F-8)+',72 L '+(F-7)+',100 Q '+(F-12)+',94 '+(F-13)+',80 Z',F);
+  R.lats = mp('M '+(B-15)+',59 Q '+(B-1)+',63 '+(B-1)+',72 L '+(B-1)+',90 Q '+(B-14)+',82 '+(B-17)+',68 Z',B);
+  R.midback = ['M '+B+',59 Q '+(B-11)+',65 '+(B-10)+',72 Q '+B+',85 '+(B+10)+',72 Q '+(B+11)+',65 '+B+',59 Z'];
+  R.lowback = ['M '+(B-9)+',89 Q '+B+',87 '+(B+9)+',89 L '+(B+8)+',104 Q '+B+',107 '+(B-8)+',104 Z'];
+  R.glutes = mp('M '+(B-9)+',108 Q '+(B-18)+',112 '+(B-16)+',125 Q '+(B-9)+',130 '+(B-1)+',123 L '+(B-1)+',110 Z',B);
+  R.quads = mp('M '+(F-13)+',120 Q '+(F-18)+',128 '+(F-16)+',148 Q '+(F-14)+',162 '+(F-12)+',167 Q '+(F-6)+',166 '+(F-3)+',160 Q '+(F-2)+',138 '+(F-4)+',122 Q '+(F-8)+',118 '+(F-13)+',120 Z',F);
+  R.adductors = ['M '+(F-3)+',122 Q '+F+',120 '+(F+3)+',122 L '+(F+2)+',156 Q '+F+',159 '+(F-2)+',156 Z'];
+  R.hams = mp('M '+(B-13)+',128 Q '+(B-18)+',146 '+(B-15)+',166 Q '+(B-8)+',169 '+(B-3)+',164 Q '+(B-2)+',144 '+(B-4)+',128 Q '+(B-8)+',126 '+(B-13)+',128 Z',B);
+  R.calves = mp('M '+(B-13)+',173 Q '+(B-17)+',184 '+(B-13)+',200 Q '+(B-9)+',207 '+(B-6)+',200 Q '+(B-4)+',185 '+(B-6)+',174 Q '+(B-10)+',171 '+(B-13)+',173 Z',B);
+  var inner = body(F) + body(B);
+  for(var k in R){
+    var st = main.indexOf(k)>=0 ? 'Mn' : (sub.indexOf(k)>=0 ? 'Sb' : 'Bs');
+    var strk = main.indexOf(k)>=0 ? '#ff9a8f' : (sub.indexOf(k)>=0 ? '#a8433b' : '#454c56');
+    var pls = main.indexOf(k)>=0 ? ' class="mpls"' : '';
+    inner += R[k].map(function(d){ return '<path d="'+d+'" fill="url(#'+uid+st+')" stroke="'+strk+'" stroke-width=".5"'+pls+'/>'; }).join('');
+  }
+  inner += '<text x="75" y="238" text-anchor="middle" fill="#8a8a8a" font-size="11">앞</text><text x="225" y="238" text-anchor="middle" fill="#8a8a8a" font-size="11">뒤</text>';
+  var defs = '<defs>'
+    + '<radialGradient id="'+uid+'body" cx="42%" cy="32%" r="80%"><stop offset="0" stop-color="#2b3038"/><stop offset="1" stop-color="#12151a"/></radialGradient>'
+    + '<radialGradient id="'+uid+'Bs" cx="40%" cy="32%" r="78%"><stop offset="0" stop-color="#3e4550"/><stop offset="1" stop-color="#23272e"/></radialGradient>'
+    + '<radialGradient id="'+uid+'Sb" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#b23a30"/><stop offset="1" stop-color="#571813"/></radialGradient>'
+    + '<radialGradient id="'+uid+'Mn" cx="38%" cy="28%" r="85%"><stop offset="0" stop-color="#ff8a7a"/><stop offset="0.55" stop-color="#ff3b2c"/><stop offset="1" stop-color="#a5140b"/></radialGradient>'
+    + '</defs>';
+  return '<svg viewBox="0 0 300 246" xmlns="http://www.w3.org/2000/svg">' + defs + inner + '</svg>';
 }
 // 변형 운동은 기본 운동의 그림을 공유
 function getSvg(id){ const e = EX[id]; return e.svg || EX[e.ref].svg; }
